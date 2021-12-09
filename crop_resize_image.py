@@ -6,6 +6,13 @@ from tqdm import tqdm
 import random
 
 
+def _subtract_local_average(im, target_radius_size):
+    # cv2 = tfds.core.lazy_imports.cv2
+    image_blurred = cv2.GaussianBlur(im, (0, 0), target_radius_size / 27)
+    im = cv2.addWeighted(im, 4, image_blurred, -4, 128)
+    return im
+
+
 def get_image_info(im):
     im_gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
 
@@ -59,26 +66,36 @@ def get_image_info(im):
 
 
 def create_new_image(img, x, y, r, level):
-    half_size = 256
-    scale_factor = 355 / r  # about sqrt((half_size ** 2) * 2)
+    half_size = 200
+    scale_factor = 290 / r  # about half_size * sqrt(2)
 
     im_width = int(img.shape[1] * scale_factor)
     im_height = int(img.shape[0] * scale_factor)
     dim = (im_width, im_height)
 
     # resize image
-    interpolation_list = [cv2.INTER_AREA, cv2.INTER_CUBIC, cv2.INTER_LANCZOS4, cv2.INTER_LINEAR, cv2.INTER_NEAREST]
+    angle_list = [-30, -15, 0, 15, 30]
     resized_list = list()
-    if level == 0:
-        resized_list.append(cv2.resize(img, dim, interpolation=random.choice(interpolation_list)))
-    else:
-        random.shuffle(interpolation_list)
-        for interpolation in interpolation_list:
-            resized_list.append(cv2.resize(img, dim, interpolation=interpolation))
 
+    resize_im = cv2.resize(img, dim, interpolation=cv2.INTER_LANCZOS4)
     # center of circle is x, y
     new_x = int(x * scale_factor)
     new_y = int(y * scale_factor)
+    image_center = (new_x, new_y)
+
+    if level == 0:
+        rot_mat = cv2.getRotationMatrix2D(image_center, random.choice(angle_list), 1.0)
+        temp_im = cv2.warpAffine(resize_im, rot_mat, resize_im.shape[1::-1], flags=cv2.INTER_LINEAR)
+        temp_im = _subtract_local_average(temp_im, half_size * np.sqrt(2))
+        resized_list.append(temp_im)
+    else:
+        random.shuffle(angle_list)
+        for angle in angle_list:
+            rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
+            temp_im = cv2.warpAffine(resize_im, rot_mat, resize_im.shape[1::-1], flags=cv2.INTER_LINEAR)
+            temp_im = _subtract_local_average(temp_im, half_size * np.sqrt(2))
+            resized_list.append(temp_im)
+
     # print('NewX, NewY', new_x, new_y)
     if new_x < half_size or new_y < half_size \
             or (new_x + half_size) > resized_list[0].shape[1] \
@@ -147,9 +164,9 @@ if __name__ == '__main__':
         # else:
         #     #print(print(image_name, count, round(mean_radius, 2), round(std_radius, 2)))
 
-        # if count > 1000:
+        # if count > 50:
         #     break
 
-    print(df.sort_values('Std radius').tail(50))
-
-    print(df.sort_values('Mean radius'))
+    # print(df.sort_values('Std radius').tail(50))
+    #
+    # print(df.sort_values('Mean radius'))
