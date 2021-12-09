@@ -7,7 +7,6 @@ import random
 
 
 def _subtract_local_average(im, target_radius_size):
-    # cv2 = tfds.core.lazy_imports.cv2
     image_blurred = cv2.GaussianBlur(im, (0, 0), target_radius_size / 27)
     im = cv2.addWeighted(im, 4, image_blurred, -4, 128)
     return im
